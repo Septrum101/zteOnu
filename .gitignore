@@ -1,0 +1,12 @@
+.idea
+*.iml
+out
+gen
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
