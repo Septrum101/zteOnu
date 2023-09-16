@@ -46,16 +46,14 @@ func (f *Factory) Reset() error {
 	return errors.New(resp.String())
 }
 
-func (f *Factory) ReqFactoryMode() {
-	resp, err := f.Cli.R().SetBody("RequestFactoryMode.gch").Post("webFac")
+func (f *Factory) ReqFactoryMode() error {
+	_, err := f.Cli.R().SetBody("RequestFactoryMode.gch").Post("webFac")
 	if err != nil {
-		if err.(*url.Error).Err.Error() == "EOF" {
-			return
+		if err.(*url.Error).Err.Error() != "EOF" {
+			return err
 		}
-		fmt.Println(err)
-	} else {
-		fmt.Println(resp.String())
 	}
+	return nil
 }
 
 func (f *Factory) SendSq() (uint8, error) {
