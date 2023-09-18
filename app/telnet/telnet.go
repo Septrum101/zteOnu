@@ -3,6 +3,7 @@ package telnet
 import (
 	"fmt"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -30,38 +31,42 @@ func (t *Telnet) PermTelnet() error {
 		return err
 	}
 
+	// reboot device
+	fmt.Println("wait reboot..")
+	time.Sleep(time.Second)
+	if err := t.Reboot(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (t *Telnet) loginTelnet() error {
-	ctrl := "\r\n"
-	cmd := []byte(t.user + ctrl + t.pass + ctrl)
-
-	return t.sendCmd(cmd)
+	return t.sendCmd(t.user, t.pass)
 }
 
 func (t *Telnet) modifyDB() error {
+	// set DB data
 	prefix := "sendcmd 1 DB set TelnetCfg 0 "
-	lanEnable := prefix + "Lan_Enable 1" + ctrl
-	tsLanUser := prefix + "TSLan_UName root" + ctrl
-	tsLanPwd := prefix + "TSLan_UPwd Zte521" + ctrl
-	maxConn := prefix + "Max_Con_Num 3" + ctrl
-	initSecLvl := prefix + "InitSecLvl 3" + ctrl
+	lanEnable := prefix + "Lan_Enable 1"
+	tsLanUser := prefix + "TSLan_UName root"
+	tsLanPwd := prefix + "TSLan_UPwd Zte521"
+	maxConn := prefix + "Max_Con_Num 3"
+	initSecLvl := prefix + "InitSecLvl 3"
 
-	save := "sendcmd 1 DB save" + ctrl
+	// save DB
+	save := "sendcmd 1 DB save"
 
-	cmd := []byte(lanEnable + tsLanUser + tsLanPwd + maxConn + initSecLvl + save)
-	if err := t.sendCmd(cmd); err != nil {
+	if err := t.sendCmd(lanEnable, tsLanUser, tsLanPwd, maxConn, initSecLvl, save); err != nil {
 		return err
 	}
-	fmt.Println("Permanent Telnet succeed, wait reboot..")
-	fmt.Println("user: root, pass: Zte521")
-	time.Sleep(time.Second)
+	fmt.Println("Permanent Telnet succeed\r\nuser: root, pass: Zte521")
 
-	return t.Reboot()
+	return nil
 }
 
-func (t *Telnet) sendCmd(cmd []byte) error {
+func (t *Telnet) sendCmd(commands ...string) error {
+	cmd := []byte(strings.Join(commands, ctrl) + ctrl)
 	n, err := t.conn.Write(cmd)
 	if err != nil {
 		return err
@@ -76,5 +81,5 @@ func (t *Telnet) sendCmd(cmd []byte) error {
 }
 
 func (t *Telnet) Reboot() error {
-	return t.sendCmd([]byte("reboot" + ctrl))
+	return t.sendCmd("reboot")
 }
