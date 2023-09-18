@@ -16,7 +16,7 @@ func main() {
 	passwd := flag.String("p", "nE7jA%5m", "factory mode auth password")
 	ip := flag.String("i", "192.168.1.1", "ONU ip address")
 	port := flag.Int("port", 8080, "ONU http port")
-	permTelnet := flag.Bool("telnet", false, "Permanent telnet (user: root, pass: Zte521)")
+	permTelnet := flag.Bool("telnet", false, "permanent telnet (user: root, pass: Zte521)")
 	flag.Parse()
 
 	fac := factory.New(*user, *passwd, *ip, *port)
