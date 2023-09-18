@@ -1,4 +1,4 @@
-package app
+package factory
 
 import (
 	"bytes"
@@ -106,12 +106,7 @@ func (f *Factory) CheckLoginAuth() error {
 	}
 	switch resp.StatusCode() {
 	case 200:
-		cipherByte := resp.Body()
-		if len(cipherByte)%16 != 0 {
-			cipherByte = utils.PKCS5Padding(cipherByte, 16)
-		}
-		_, err := utils.ECBDecrypt(cipherByte, f.Key)
-		if err != nil {
+		if _, err := utils.ECBDecrypt(resp.Body(), f.Key); err != nil {
 			return err
 		}
 		return nil

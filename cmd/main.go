@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/thank243/zteOnu/app"
+	"github.com/thank243/zteOnu/app/factory"
 	"github.com/thank243/zteOnu/version"
 )
 
@@ -19,7 +19,7 @@ func main() {
 	port := flag.Int("port", 8080, "ONU http port")
 	flag.Parse()
 
-	fac := app.New(*user, *passwd, *ip, *port)
+	fac := factory.New(*user, *passwd, *ip, *port)
 
 	fmt.Print("step [0] reset factory: ")
 	if err := fac.Reset(); err != nil {
@@ -32,6 +32,7 @@ func main() {
 	fmt.Print("step [1] request factory mode: ")
 	if err := fac.ReqFactoryMode(); err != nil {
 		fmt.Println(err)
+		return
 	} else {
 		fmt.Println("ok")
 	}
@@ -40,6 +41,7 @@ func main() {
 	ver, err := fac.SendSq()
 	if err != nil {
 		fmt.Println(err)
+		return
 	} else {
 		fmt.Println("ok")
 	}
