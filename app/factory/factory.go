@@ -162,3 +162,54 @@ func (f *Factory) FactoryMode() (string, string, error) {
 
 	return u.Get("user"), u.Get("pass"), nil
 }
+
+func (f *Factory) Handle() (string, string, error) {
+	fmt.Println(strings.Repeat("-", 35))
+	fmt.Print("step [0] reset factory: ")
+	if err := f.Reset(); err != nil {
+		return "", "", fmt.Errorf("reset errors: %v\n", err)
+	} else {
+		fmt.Println("ok")
+	}
+
+	fmt.Print("step [1] request factory mode: ")
+	if err := f.ReqFactoryMode(); err != nil {
+		return "", "", err
+	} else {
+		fmt.Println("ok")
+	}
+
+	fmt.Print("step [2] send sq: ")
+	ver, err := f.SendSq()
+	if err != nil {
+		return "", "", err
+	} else {
+		fmt.Println("ok")
+	}
+
+	fmt.Print("step [3] check login auth: ")
+	switch ver {
+	case 1:
+		if err := f.CheckLoginAuth(); err != nil {
+			return "", "", err
+		}
+	case 2:
+		if err := f.SendInfo(); err != nil {
+			return "", "", err
+		}
+		if err := f.CheckLoginAuth(); err != nil {
+			return "", "", err
+		}
+	}
+	fmt.Println("ok")
+
+	fmt.Print("step [4] enter factory mode: ")
+	tlUser, tlPass, err := f.FactoryMode()
+	if err != nil {
+		return "", "", err
+	} else {
+		fmt.Println("ok")
+	}
+	fmt.Println(strings.Repeat("-", 35))
+	return tlUser, tlPass, nil
+}
