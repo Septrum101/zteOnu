@@ -41,7 +41,6 @@ func (t *Telnet) loginTelnet() error {
 }
 
 func (t *Telnet) modifyDB() error {
-
 	prefix := "sendcmd 1 DB set TelnetCfg 0 "
 	lanEnable := prefix + "Lan_Enable 1" + ctrl
 	tsLanUser := prefix + "TSLan_UName root" + ctrl
@@ -51,7 +50,7 @@ func (t *Telnet) modifyDB() error {
 
 	save := "sendcmd 1 DB save" + ctrl
 
-	cmd := []byte(lanEnable + tsLanUser + tsLanPwd + maxConn + initSecLvl + initSecLvl + save)
+	cmd := []byte(lanEnable + tsLanUser + tsLanPwd + maxConn + initSecLvl + save)
 	if err := t.sendCmd(cmd); err != nil {
 		return err
 	}
