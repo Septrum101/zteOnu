@@ -4,37 +4,29 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 )
 
-func New(user string, pass string, ip string) *Telnet {
-	return &Telnet{
+func New(user string, pass string, ip string) (*Telnet, error) {
+	conn, err := net.Dial("tcp", ip+":telnet")
+	if err != nil {
+		return nil, err
+	}
+
+	t := &Telnet{
 		user: user,
 		pass: pass,
-		ip:   ip,
+		Conn: conn,
 	}
+
+	return t, nil
 }
 
 func (t *Telnet) PermTelnet() error {
-	conn, err := net.Dial("tcp", t.ip+":telnet")
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	t.conn = conn
-
 	if err := t.loginTelnet(); err != nil {
 		return err
 	}
 
 	if err := t.modifyDB(); err != nil {
-		return err
-	}
-
-	// reboot device
-	fmt.Println("wait reboot..")
-	time.Sleep(time.Second)
-	if err := t.Reboot(); err != nil {
 		return err
 	}
 
@@ -60,14 +52,13 @@ func (t *Telnet) modifyDB() error {
 	if err := t.sendCmd(lanEnable, tsLanUser, tsLanPwd, maxConn, initSecLvl, save); err != nil {
 		return err
 	}
-	fmt.Println("Permanent Telnet succeed\r\nuser: root, pass: Zte521")
 
 	return nil
 }
 
 func (t *Telnet) sendCmd(commands ...string) error {
 	cmd := []byte(strings.Join(commands, ctrl) + ctrl)
-	n, err := t.conn.Write(cmd)
+	n, err := t.Conn.Write(cmd)
 	if err != nil {
 		return err
 	}

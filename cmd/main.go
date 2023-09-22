@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/thank243/zteOnu/app/factory"
 	"github.com/thank243/zteOnu/app/telnet"
@@ -28,9 +29,28 @@ func main() {
 	}
 
 	if *permTelnet {
-		t := telnet.New(tlUser, tlPass, *ip)
+		// create telnet conn
+		t, err := telnet.New(tlUser, tlPass, *ip)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer t.Conn.Close()
+
+		// handle permanent telnet
 		if err := t.PermTelnet(); err != nil {
 			fmt.Println(err)
+			return
+		} else {
+			fmt.Println("Permanent Telnet succeed\r\nuser: root, pass: Zte521")
+		}
+
+		// reboot device
+		fmt.Println("wait reboot..")
+		time.Sleep(time.Second)
+		if err := t.Reboot(); err != nil {
+			fmt.Println(err)
+			return
 		}
 	} else {
 		fmt.Printf("user: %s\npass: %s", tlUser, tlPass)
