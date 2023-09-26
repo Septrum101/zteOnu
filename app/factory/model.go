@@ -1,5 +1,9 @@
 package factory
 
+import (
+	"github.com/go-resty/resty/v2"
+)
+
 var (
 	AesKeyPool = []byte{
 		0x7B, 0x56, 0xB0, 0xF7, 0xDA, 0x0E, 0x68, 0x52, 0xC8, 0x19,
@@ -27,3 +31,12 @@ var (
 		0x4F, 0x67, 0xEC, 0x97, 0xF4, 0x99,
 	}
 )
+
+type Factory struct {
+	user   string
+	passwd string
+	ip     string
+	port   int
+	cli    *resty.Client
+	Key    []byte
+}

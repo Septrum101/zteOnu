@@ -15,27 +15,18 @@ import (
 	"github.com/thank243/zteOnu/utils"
 )
 
-type Factory struct {
-	user   string
-	passwd string
-	ip     string
-	port   int
-	Cli    *resty.Client
-	Key    []byte
-}
-
 func New(user string, passwd string, ip string, port int) *Factory {
 	return &Factory{
 		user:   user,
 		passwd: passwd,
 		ip:     ip,
 		port:   port,
-		Cli:    resty.New().SetBaseURL(fmt.Sprintf("http://%s:%d", ip, port)),
+		cli:    resty.New().SetBaseURL(fmt.Sprintf("http://%s:%d", ip, port)),
 	}
 }
 
 func (f *Factory) Reset() error {
-	resp, err := f.Cli.R().SetBody("SendSq.gch").Post("webFac")
+	resp, err := f.cli.R().SetBody("SendSq.gch").Post("webFac")
 	if err != nil {
 		return err
 	}
@@ -47,7 +38,7 @@ func (f *Factory) Reset() error {
 }
 
 func (f *Factory) ReqFactoryMode() error {
-	_, err := f.Cli.R().SetBody("RequestFactoryMode.gch").Post("webFac")
+	_, err := f.cli.R().SetBody("RequestFactoryMode.gch").Post("webFac")
 	if err != nil {
 		if err.(*url.Error).Err.Error() != "EOF" {
 			return err
@@ -64,7 +55,7 @@ func (f *Factory) SendSq() (uint8, error) {
 	)
 
 	r := rand.New(rand.NewSource(time.Now().Unix())).Intn(60)
-	resp, err := f.Cli.R().SetBody(fmt.Sprintf("SendSq.gch?rand=%d", r)).Post("webFac")
+	resp, err := f.cli.R().SetBody(fmt.Sprintf("SendSq.gch?rand=%d", r)).Post("webFac")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -84,10 +75,12 @@ func (f *Factory) SendSq() (uint8, error) {
 	} else {
 		return 0, errors.New("unknown error")
 	}
-	pool := keyPool[idx : idx+24]
 
+	// Get keys
+	pool := keyPool[idx : idx+24]
+	f.Key = make([]byte, len(pool))
 	for i := range pool {
-		f.Key = append(f.Key, (pool[i]^0xA5)&0xFF)
+		f.Key[i] = (pool[i] ^ 0xA5) & 0xFF
 	}
 
 	return version, nil
@@ -100,7 +93,7 @@ func (f *Factory) CheckLoginAuth() error {
 		return err
 	}
 
-	resp, err := f.Cli.R().SetBody(payload).Post("webFacEntry")
+	resp, err := f.cli.R().SetBody(payload).Post("webFacEntry")
 	if err != nil {
 		return err
 	}
@@ -124,7 +117,7 @@ func (f *Factory) SendInfo() error {
 	if err != nil {
 		return err
 	}
-	resp, err := f.Cli.R().SetBody(payload).Post("webFacEntry")
+	resp, err := f.cli.R().SetBody(payload).Post("webFacEntry")
 	if err != nil {
 		return err
 	}
@@ -146,7 +139,7 @@ func (f *Factory) FactoryMode() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	resp, err := f.Cli.R().SetBody(payload).Post("webFacEntry")
+	resp, err := f.cli.R().SetBody(payload).Post("webFacEntry")
 	if err != nil {
 		return "", "", err
 	}
@@ -165,6 +158,7 @@ func (f *Factory) FactoryMode() (string, string, error) {
 
 func (f *Factory) Handle() (string, string, error) {
 	fmt.Println(strings.Repeat("-", 35))
+
 	fmt.Print("step [0] reset factory: ")
 	if err := f.Reset(); err != nil {
 		return "", "", fmt.Errorf("reset errors: %v\n", err)
@@ -210,6 +204,8 @@ func (f *Factory) Handle() (string, string, error) {
 	} else {
 		fmt.Println("ok")
 	}
+
 	fmt.Println(strings.Repeat("-", 35))
+
 	return tlUser, tlPass, nil
 }
