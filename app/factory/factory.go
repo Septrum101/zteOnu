@@ -134,41 +134,45 @@ func (f *Factory) SendInfo() error {
 	}
 }
 
-func (f *Factory) FactoryMode() (string, string, error) {
+func (f *Factory) FactoryMode() (user string, pass string, err error) {
 	payload, err := utils.ECBEncrypt([]byte("FactoryMode.gch?mode=2&user=notused"), f.Key)
 	if err != nil {
-		return "", "", err
+		return
 	}
 	resp, err := f.cli.R().SetBody(payload).Post("webFacEntry")
 	if err != nil {
-		return "", "", err
+		return
 	}
 
 	dec, err := utils.ECBDecrypt(resp.Body(), f.Key)
 	if err != nil {
-		return "", "", err
+		return
 	}
+
 	u, err := url.ParseQuery(string(bytes.ReplaceAll(dec, []byte("FactoryModeAuth.gch?"), []byte(""))))
 	if err != nil {
-		return "", "", err
+		return
 	}
 
-	return u.Get("user"), u.Get("pass"), nil
+	user = u.Get("user")
+	pass = u.Get("pass")
+
+	return
 }
 
-func (f *Factory) Handle() (string, string, error) {
+func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
 	fmt.Println(strings.Repeat("-", 35))
 
 	fmt.Print("step [0] reset factory: ")
 	if err := f.Reset(); err != nil {
-		return "", "", fmt.Errorf("reset errors: %v\n", err)
+		return
 	} else {
 		fmt.Println("ok")
 	}
 
 	fmt.Print("step [1] request factory mode: ")
 	if err := f.ReqFactoryMode(); err != nil {
-		return "", "", err
+		return
 	} else {
 		fmt.Println("ok")
 	}
@@ -176,7 +180,7 @@ func (f *Factory) Handle() (string, string, error) {
 	fmt.Print("step [2] send sq: ")
 	ver, err := f.SendSq()
 	if err != nil {
-		return "", "", err
+		return
 	} else {
 		fmt.Println("ok")
 	}
@@ -185,27 +189,27 @@ func (f *Factory) Handle() (string, string, error) {
 	switch ver {
 	case 1:
 		if err := f.CheckLoginAuth(); err != nil {
-			return "", "", err
+			return
 		}
 	case 2:
 		if err := f.SendInfo(); err != nil {
-			return "", "", err
+			return
 		}
 		if err := f.CheckLoginAuth(); err != nil {
-			return "", "", err
+			return
 		}
 	}
 	fmt.Println("ok")
 
 	fmt.Print("step [4] enter factory mode: ")
-	tlUser, tlPass, err := f.FactoryMode()
+	tlUser, tlPass, err = f.FactoryMode()
 	if err != nil {
-		return "", "", err
+		return
 	} else {
 		fmt.Println("ok")
 	}
 
 	fmt.Println(strings.Repeat("-", 35))
 
-	return tlUser, tlPass, nil
+	return
 }
