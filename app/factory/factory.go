@@ -1,7 +1,6 @@
 package factory
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -149,13 +148,14 @@ func (f *Factory) FactoryMode() (user string, pass string, err error) {
 		return
 	}
 
-	u, err := url.ParseQuery(string(bytes.ReplaceAll(dec, []byte("FactoryModeAuth.gch?"), []byte(""))))
+	u, err := url.Parse(string(dec))
 	if err != nil {
 		return
 	}
 
-	user = u.Get("user")
-	pass = u.Get("pass")
+	q := u.Query()
+	user = q.Get("user")
+	pass = q.Get("pass")
 
 	return
 }
@@ -164,21 +164,22 @@ func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
 	fmt.Println(strings.Repeat("-", 35))
 
 	fmt.Print("step [0] reset factory: ")
-	if err := f.Reset(); err != nil {
+	if err = f.Reset(); err != nil {
 		return
 	} else {
 		fmt.Println("ok")
 	}
 
 	fmt.Print("step [1] request factory mode: ")
-	if err := f.ReqFactoryMode(); err != nil {
+	if err = f.ReqFactoryMode(); err != nil {
 		return
 	} else {
 		fmt.Println("ok")
 	}
 
+	var ver uint8
 	fmt.Print("step [2] send sq: ")
-	ver, err := f.SendSq()
+	ver, err = f.SendSq()
 	if err != nil {
 		return
 	} else {
@@ -188,14 +189,14 @@ func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
 	fmt.Print("step [3] check login auth: ")
 	switch ver {
 	case 1:
-		if err := f.CheckLoginAuth(); err != nil {
+		if err = f.CheckLoginAuth(); err != nil {
 			return
 		}
 	case 2:
-		if err := f.SendInfo(); err != nil {
+		if err = f.SendInfo(); err != nil {
 			return
 		}
-		if err := f.CheckLoginAuth(); err != nil {
+		if err = f.CheckLoginAuth(); err != nil {
 			return
 		}
 	}
