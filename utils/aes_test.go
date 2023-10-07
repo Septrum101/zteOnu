@@ -26,4 +26,7 @@ func TestAES(t *testing.T) {
 		return
 	}
 	fmt.Println("解密后: ", string(decrypted))
+	if orig != string(decrypted) {
+		t.Error("original string not equal decrypted string")
+	}
 }
