@@ -18,6 +18,7 @@ func main() {
 	ip := flag.String("i", "192.168.1.1", "ONU ip address")
 	port := flag.Int("port", 8080, "ONU http port")
 	permTelnet := flag.Bool("telnet", false, "permanent telnet (user: root, pass: Zte521)")
+	telnetPort := flag.Int("tp", 23, "ONU telnet port")
 	flag.Parse()
 
 	fac := factory.New(*user, *passwd, *ip, *port)
@@ -30,7 +31,7 @@ func main() {
 
 	if *permTelnet {
 		// create telnet conn
-		t, err := telnet.New(tlUser, tlPass, *ip)
+		t, err := telnet.New(tlUser, tlPass, *ip, *telnetPort)
 		if err != nil {
 			fmt.Println(err)
 			return

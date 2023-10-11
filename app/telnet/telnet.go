@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-func New(user string, pass string, ip string) (*Telnet, error) {
-	conn, err := net.Dial("tcp", ip+":telnet")
+func New(user string, pass string, ip string, port int) (*Telnet, error) {
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", ip, port))
 	if err != nil {
 		return nil, err
 	}
