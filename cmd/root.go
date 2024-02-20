@@ -36,7 +36,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&ip, "ip", "i", "192.168.1.1", "ONU ip address")
 	rootCmd.PersistentFlags().IntVar(&port, "port", 8080, "ONU http port")
 	rootCmd.PersistentFlags().BoolVar(&permTelnet, "telnet", false, "permanent telnet (user: root, pass: Zte521)")
-	rootCmd.PersistentFlags().IntVar(&port, "tp", 23, "ONU telnet port")
+	rootCmd.PersistentFlags().IntVar(&telnetPort, "tp", 23, "ONU telnet port")
 }
 
 func run() error {
