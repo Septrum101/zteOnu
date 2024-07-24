@@ -19,6 +19,7 @@ var (
 	port       int
 	permTelnet bool
 	telnetPort int
+	version61  bool
 
 	rootCmd = &cobra.Command{
 		Use: "zteOnu",
@@ -37,12 +38,13 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&port, "port", 8080, "ONU http port")
 	rootCmd.PersistentFlags().BoolVar(&permTelnet, "telnet", false, "permanent telnet (user: root, pass: Zte521)")
 	rootCmd.PersistentFlags().IntVar(&telnetPort, "tp", 23, "ONU telnet port")
+	rootCmd.PersistentFlags().BoolVar(&version61, "new", false, "use new method to open telnet, the mac address should set to 00-07-29-55-35-57")
 }
 
 func run() error {
 	version.Show()
 
-	tlUser, tlPass, err := factory.New(user, passwd, ip, port).Handle()
+	tlUser, tlPass, err := factory.New(user, passwd, ip, port, version61).Handle()
 	if err != nil {
 		return err
 	}

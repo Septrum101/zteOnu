@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"crypto/aes"
+	"encoding/base64"
 )
 
 func ECBEncrypt(origData, key []byte) ([]byte, error) {
@@ -48,4 +49,18 @@ func padding(origData []byte, blockSize int) []byte {
 
 func unPadding(origData []byte) []byte {
 	return bytes.TrimRight(origData, "\x00")
+}
+
+func Base64Decrypt(b64 string, key []byte) ([]byte, error) {
+	encrypted, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return nil, err
+	}
+
+	decrypted, err := ECBDecrypt(encrypted, key)
+	if err != nil {
+		return nil, err
+	}
+
+	return decrypted, nil
 }
