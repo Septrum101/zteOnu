@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	Version = "0.0.5"
+	Version = "0.0.6"
 	AppName = "ZteONU"
 	Intro   = "github.com/thank243/zteOnu"
 )

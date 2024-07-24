@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/url"
 	"strconv"
 	"strings"
@@ -14,8 +13,6 @@ import (
 
 	"github.com/thank243/zteOnu/utils"
 )
-
-var randTime int
 
 func New(user string, passwd string, ip string, port int, newMode bool) *Factory {
 	return &Factory{
@@ -30,6 +27,11 @@ func New(user string, passwd string, ip string, port int, newMode bool) *Factory
 }
 
 func (f *Factory) reset() error {
+	// active onu web service first, increase the chances of success
+	if _, err := f.cli.R().Get("/"); err != nil {
+		return err
+	}
+
 	resp, err := f.cli.R().SetBody("SendSq.gch").Post("webFac")
 	if err != nil {
 		return err
@@ -80,9 +82,7 @@ func (f *Factory) sendSq() (uint8, error) {
 func (f *Factory) checkLoginAuth() error {
 	command := fmt.Sprintf("CheckLoginAuth.gch?version50&user=%s&pass=%s", f.user, f.passwd)
 	if f.newMode {
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		randTime = r.Intn(1000)
-		command = fmt.Sprintf("CheckLoginAuth.gch?time%d&version61&user=%s&pass=%s", randTime, f.user, f.passwd)
+		command = fmt.Sprintf("CheckLoginAuth.gch?&version61&user=%s&pass=%s", f.user, f.passwd)
 	}
 	payload, err := utils.ECBEncrypt(
 		[]byte(command), f.key)
@@ -111,6 +111,7 @@ func (f *Factory) checkLoginAuth() error {
 
 func (f *Factory) sendInfo() error {
 	command := []byte("SendInfo.gch?info=6|")
+
 	if f.newMode {
 		command = []byte("SendInfo.gch?info=12|")
 		magicBytes, err := base64.StdEncoding.DecodeString(magicBytesBase64)
@@ -143,11 +144,7 @@ func (f *Factory) sendInfo() error {
 
 func (f *Factory) factoryMode() (user string, pass string, err error) {
 	command := "FactoryMode.gch?mode=2&user=notused"
-	if f.newMode {
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		rt := r.Intn(1000-randTime) + randTime
-		command = fmt.Sprintf("FactoryMode.gch?time%d&mode=2&user=fuckyou", rt)
-	}
+
 	payload, err := utils.ECBEncrypt([]byte(command), f.key)
 	if err != nil {
 		return

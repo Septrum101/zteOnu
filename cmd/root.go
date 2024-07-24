@@ -44,9 +44,23 @@ func init() {
 func run() error {
 	version.Show()
 
-	tlUser, tlPass, err := factory.New(user, passwd, ip, port, version61).Handle()
-	if err != nil {
-		return err
+	var (
+		tlUser, tlPass string
+		err            error
+		count          uint8
+	)
+
+	for {
+		tlUser, tlPass, err = factory.New(user, passwd, ip, port, version61).Handle()
+		if err != nil {
+			count++
+			fmt.Println(err, fmt.Sprintf("Attempt retrying..(%d/10)", count))
+			if count > 10 {
+				return err
+			}
+			continue
+		}
+		break
 	}
 
 	if permTelnet {
