@@ -36,11 +36,10 @@ var (
 )
 
 type Factory struct {
-	user    string
-	passwd  string
-	ip      string
-	port    int
-	cli     *resty.Client
-	key     []byte
-	newMode bool
+	user   string
+	passwd string
+	ip     string
+	port   int
+	cli    *resty.Client
+	key    []byte
 }

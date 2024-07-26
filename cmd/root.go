@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -19,7 +21,7 @@ var (
 	port       int
 	permTelnet bool
 	telnetPort int
-	version61  bool
+	newMode    bool
 
 	rootCmd = &cobra.Command{
 		Use: "zteOnu",
@@ -38,29 +40,34 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&port, "port", 8080, "ONU http port")
 	rootCmd.PersistentFlags().BoolVar(&permTelnet, "telnet", false, "permanent telnet (user: root, pass: Zte521)")
 	rootCmd.PersistentFlags().IntVar(&telnetPort, "tp", 23, "ONU telnet port")
-	rootCmd.PersistentFlags().BoolVar(&version61, "new", false, "use new method to open telnet, the mac address should set to 00-07-29-55-35-57")
+	rootCmd.PersistentFlags().BoolVar(&newMode, "new", false, "use new method to open telnet, MAC address must set to 00:07:29:55:35:57")
 }
 
 func run() error {
 	version.Show()
 
-	var (
-		tlUser, tlPass string
-		err            error
-		count          uint8
-	)
-
-	for {
-		tlUser, tlPass, err = factory.New(user, passwd, ip, port, version61).Handle()
+	if newMode {
+		interfaces, err := net.Interfaces()
 		if err != nil {
-			count++
-			fmt.Println(err, fmt.Sprintf("Attempt retrying..(%d/10)", count))
-			if count > 10 {
-				return err
-			}
-			continue
+			return err
 		}
-		break
+
+		var isMagicMac bool
+		for _, i := range interfaces {
+			if i.HardwareAddr.String() == "00:07:29:55:35:57" {
+				isMagicMac = true
+				break
+			}
+		}
+
+		if !isMagicMac {
+			return errors.New("MAC address is not set to 00:07:29:55:35:57")
+		}
+	}
+
+	tlUser, tlPass, err := factory.New(user, passwd, ip, port).Handle()
+	if err != nil {
+		return err
 	}
 
 	if permTelnet {
@@ -87,7 +94,6 @@ func run() error {
 	} else {
 		fmt.Printf("user: %s\npass: %s", tlUser, tlPass)
 	}
-
 	return nil
 }
 

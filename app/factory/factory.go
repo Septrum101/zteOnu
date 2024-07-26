@@ -14,7 +14,7 @@ import (
 	"github.com/thank243/zteOnu/utils"
 )
 
-func New(user string, passwd string, ip string, port int, newMode bool) *Factory {
+func New(user string, passwd string, ip string, port int) *Factory {
 	return &Factory{
 		user:   user,
 		passwd: passwd,
@@ -22,7 +22,6 @@ func New(user string, passwd string, ip string, port int, newMode bool) *Factory
 		port:   port,
 		cli: resty.New().SetHeader("User-Agent", "curl/8.8.0-DEV").
 			SetBaseURL(fmt.Sprintf("http://%s:%d", ip, port)),
-		newMode: newMode,
 	}
 }
 
@@ -80,10 +79,8 @@ func (f *Factory) sendSq() (uint8, error) {
 }
 
 func (f *Factory) checkLoginAuth() error {
-	command := fmt.Sprintf("CheckLoginAuth.gch?version50&user=%s&pass=%s", f.user, f.passwd)
-	if f.newMode {
-		command = fmt.Sprintf("CheckLoginAuth.gch?&version61&user=%s&pass=%s", f.user, f.passwd)
-	}
+	command := fmt.Sprintf("CheckLoginAuth.gch?&version61&user=%s&pass=%s", f.user, f.passwd)
+
 	payload, err := utils.ECBEncrypt(
 		[]byte(command), f.key)
 	if err != nil {
@@ -110,16 +107,12 @@ func (f *Factory) checkLoginAuth() error {
 }
 
 func (f *Factory) sendInfo() error {
-	command := []byte("SendInfo.gch?info=6|")
-
-	if f.newMode {
-		command = []byte("SendInfo.gch?info=12|")
-		magicBytes, err := base64.StdEncoding.DecodeString(magicBytesBase64)
-		if err != nil {
-			return err
-		}
-		command = append(command, magicBytes...)
+	command := []byte("SendInfo.gch?info=12|")
+	magicBytes, err := base64.StdEncoding.DecodeString(magicBytesBase64)
+	if err != nil {
+		return err
 	}
+	command = append(command, magicBytes...)
 
 	payload, err := utils.ECBEncrypt(command, f.key)
 	if err != nil {
@@ -171,7 +164,7 @@ func (f *Factory) factoryMode() (user string, pass string, err error) {
 	return
 }
 
-func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
+func (f *Factory) handle() (tlUser string, tlPass string, err error) {
 	fmt.Println(strings.Repeat("-", 35))
 
 	fmt.Print("step [0] reset factory: ")
@@ -222,6 +215,24 @@ func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
 	}
 
 	fmt.Println(strings.Repeat("-", 35))
+
+	return
+}
+
+func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
+	count := 0
+	for {
+		tlUser, tlPass, err = f.handle()
+		if err != nil {
+			count++
+			if count > 10 {
+				return
+			}
+			fmt.Println(err, fmt.Sprintf("Attempt retrying..(%d/10)", count))
+			continue
+		}
+		break
+	}
 
 	return
 }
