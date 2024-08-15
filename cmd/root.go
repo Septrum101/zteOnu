@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -52,9 +53,14 @@ func run() error {
 			return err
 		}
 
+		magicMac, err := net.ParseMAC("00:07:29:55:35:57")
+		if err != nil {
+			return err
+		}
+
 		var isMagicMac bool
 		for _, i := range interfaces {
-			if i.HardwareAddr.String() == "00:07:29:55:35:57" {
+			if i.HardwareAddr != nil && bytes.Equal(i.HardwareAddr, magicMac) {
 				isMagicMac = true
 				break
 			}
