@@ -229,6 +229,7 @@ func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
 				return
 			}
 			fmt.Println(err, fmt.Sprintf("Attempt retrying..(%d/10)", count))
+			time.Sleep(time.Millisecond * 500)
 			continue
 		}
 		break

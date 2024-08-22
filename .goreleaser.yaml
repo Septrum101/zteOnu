@@ -1,3 +1,8 @@
-# .goreleaser.yaml
+version: 2
+
 builds:
-- main: .
+  -
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/thank243/zteOnu/version.version={{.Version}} -X github.com/thank243/zteOnu/version.date={{.Date}}

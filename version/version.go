@@ -5,11 +5,12 @@ import (
 )
 
 var (
-	Version = "0.0.6"
-	AppName = "ZteONU"
-	Intro   = "github.com/thank243/zteOnu"
+	version = "dev"
+	appName = "ZteONU"
+	date    = "unknown"
+	intro   = "https://github.com/thank243/zteOnu"
 )
 
 func Show() {
-	fmt.Printf("%s %s (%s) \n", AppName, Version, Intro)
+	fmt.Printf("%s %s, built at %s\nsource: %s\n", appName, version, date, intro)
 }
