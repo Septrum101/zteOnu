@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/thank243/zteOnu/utils"
+	"github.com/stich86/zteOnu/utils"
 )
 
 func TestNewDev(t *testing.T) {
