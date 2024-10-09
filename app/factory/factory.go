@@ -190,7 +190,7 @@ func (f *Factory) handle() (tlUser string, tlPass string, err error) {
 		fmt.Println("ok")
 	}
 
-	fmt.Print("step [3] check login auth: ")
+	fmt.Print("step [3] check login auth with user: ")
 	switch ver {
 	case 1:
 		if err = f.checkLoginAuth(); err != nil {
@@ -219,23 +219,32 @@ func (f *Factory) handle() (tlUser string, tlPass string, err error) {
 	return
 }
 
-func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
-	count := 0
-	for {
-		tlUser, tlPass, err = f.handle()
-		if err != nil {
-			count++
-			if count > 10 {
-				return
-			}
-			fmt.Println(err, fmt.Sprintf("Attempt retrying..(%d/10)", count))
-			time.Sleep(time.Millisecond * 500)
-			continue
-		}
-		break
-	}
+//func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
+//	count := 0
+//	for {
+//		tlUser, tlPass, err = f.handle()
+//		if err != nil {
+//			count++
+//			if count > 5 {
+//				return
+//			}
+//			fmt.Println(err, fmt.Sprintf("Attempt retrying..(%d/5)", count))
+//			time.Sleep(time.Millisecond * 500)
+//			continue
+//		}
+//		break
+//	}
+//
+//	return
+//}
 
-	return
+func (f *Factory) Handle() (tlUser string, tlPass string, err error) {
+    // Prova una singola combinazione e ritorna immediatamente
+    tlUser, tlPass, err = f.handle()
+    if err != nil {
+        return "", "", err // Ritorna l'errore se la combinazione non ha funzionato
+    }
+    return tlUser, tlPass, nil // Ritorna le credenziali se ha avuto successo
 }
 
 func getKeyPool(version uint8, r int, newR int) []byte {

@@ -23,10 +23,11 @@ var (
 	permTelnet bool
 	telnetPort int
 	newMode    bool
+	SecLvl	   int
 	userList   []string
 	passwdList []string
-    defaultUsers = []string{"admin", "factorymode", "CMCCAdmin", "CUAdmin", "telecomadmin", "cqadmin", "user", "admin", "cuadmin", "lnadmin", "useradmin"}
-    defaultPasswds = []string{"admin", "nE%jA@5b", "aDm8H%MdA", "CUAdmin", "nE7jA%5m", "cqunicom", "1620@CTCC", "1620@CUcc", "admintelecom", "cuadmin", "lnadmin"}
+	defaultUsers = []string{"admin", "factorymode", "CMCCAdmin", "CUAdmin", "telecomadmin", "cqadmin", "user", "admin", "cuadmin", "lnadmin", "useradmin"}
+	defaultPasswds = []string{"admin", "nE%jA@5b", "aDm8H%MdA", "CUAdmin", "nE7jA%5m", "cqunicom", "1620@CTCC", "1620@CUcc", "admintelecom", "cuadmin", "lnadmin"}
 
 	rootCmd = &cobra.Command{
 		Use: "zteOnu",
@@ -45,6 +46,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&ip, "ip", "i", "192.168.1.1", "ONU ip address")
 	rootCmd.PersistentFlags().IntVar(&port, "port", 80, "ONU http port")
 	rootCmd.PersistentFlags().BoolVar(&permTelnet, "telnet", false, "permanent telnet (user: root, pass: Zte521)")
+	rootCmd.PersistentFlags().IntVar(&SecLvl, "seclvl", 2, "Security level for telnet access, if you got \"Permission Denied\", try 3.\nuse with --telnet flag")
 	rootCmd.PersistentFlags().IntVar(&telnetPort, "tp", 23, "ONU telnet port")
 	rootCmd.PersistentFlags().BoolVar(&newMode, "new", false, "use new method to open telnet, MAC address must set to 00:07:29:55:35:57")
 }
@@ -92,11 +94,6 @@ func run() error {
 		return errors.New("Users and Passwords list should have same lenght")
 	}
 
-//	tlUser, tlPass, err := factory.New(user, passwd, ip, port).Handle()
-//	if err != nil {
-//		return err
-//	}
-
     var tlUser string 
     var tlPass string
 
@@ -104,10 +101,11 @@ func run() error {
 		var err error
 		tlUser, tlPass, err = factory.New(userList[i], passwdList[i], ip, port).Handle()
 		if err != nil {
-			return fmt.Errorf("Cannot authenticate with user %s: %v", userList[i], err)
+	            fmt.Printf("Cannot authenticate with user %s: %v\n", userList[i], err)
+	            continue 
 		}
-		// Fai qualcosa con tlUser e tlPass
-		fmt.Printf("Success autheticated with user %s\n", tlUser)
+		fmt.Printf("Success autheticated with user: %s\n", userList[i])
+		break
 	}
 
 	if permTelnet {
@@ -119,10 +117,10 @@ func run() error {
 		defer t.Conn.Close()
 
 		// handle permanent telnet
-		if err := t.PermTelnet(); err != nil {
+		if err := t.PermTelnet(SecLvl); err != nil {
 			return err
 		} else {
-			fmt.Println("Permanent Telnet succeed\r\nuser: root, pass: Zte521")
+			fmt.Println("Permanent Telnet succeed\r\nUser: root, Pass: Zte521")
 		}
 
 		// reboot device
@@ -132,7 +130,9 @@ func run() error {
 			return err
 		}
 	} else {
-		fmt.Printf("user: %s\npass: %s", tlUser, tlPass)
+		if tlUser != "" && tlPass != "" {
+ 		   fmt.Printf("Temporary User: %s\nTemporary Pass: %s\n", tlUser, tlPass)
+		}	
 	}
 	return nil
 }

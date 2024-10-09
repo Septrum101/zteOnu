@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"strconv"
 )
 
 func New(user string, pass string, ip string, port int) (*Telnet, error) {
@@ -21,12 +22,12 @@ func New(user string, pass string, ip string, port int) (*Telnet, error) {
 	return t, nil
 }
 
-func (t *Telnet) PermTelnet() error {
+func (t *Telnet) PermTelnet(SecLvl int) error {
 	if err := t.loginTelnet(); err != nil {
 		return err
 	}
 
-	if err := t.modifyDB(); err != nil {
+	if err := t.modifyDB(SecLvl); err != nil {
 		return err
 	}
 
@@ -41,14 +42,14 @@ func (t *Telnet) loginTelnet() error {
 	return t.sendCmd(t.user, t.pass)
 }
 
-func (t *Telnet) modifyDB() error {
+func (t *Telnet) modifyDB(SecLvl int) error {
 	// set DB data
 	prefix := "sendcmd 1 DB set TelnetCfg 0 "
 	lanEnable := prefix + "Lan_Enable 1"
 	tsLanUser := prefix + "TSLan_UName root"
 	tsLanPwd := prefix + "TSLan_UPwd Zte521"
 	maxConn := prefix + "Max_Con_Num 3"
-	initSecLvl := prefix + "InitSecLvl 2"
+	initSecLvl := prefix + "InitSecLvl " + strconv.Itoa(SecLvl)
 
 	// save DB
 	save := "sendcmd 1 DB save"
