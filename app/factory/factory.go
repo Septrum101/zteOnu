@@ -56,7 +56,7 @@ func (f *Factory) sendSq() (uint8, error) {
 	var version uint8
 
 	r := time.Now().Second()
-	resp, err := f.cli.R().SetBody(fmt.Sprintf("SendSq.gch?rand=%d", r)).Post("webFac")
+	resp, err := f.cli.R().SetBody(fmt.Sprintf("SendSq.gch?rand=%d\r\n", r)).Post("webFac")
 	if err != nil {
 		fmt.Println(err)
 	}
