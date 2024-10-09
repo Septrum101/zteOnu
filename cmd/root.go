@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/thank243/zteOnu/app/factory"
-	"github.com/thank243/zteOnu/app/telnet"
-	"github.com/thank243/zteOnu/version"
+	"github.com/stich86/zteOnu/app/factory"
+	"github.com/stich86/zteOnu/app/telnet"
+	"github.com/stich86/zteOnu/version"
 )
 
 var (
@@ -23,6 +23,10 @@ var (
 	permTelnet bool
 	telnetPort int
 	newMode    bool
+	userList   []string
+	passwdList []string
+    defaultUsers = []string{"admin", "factorymode", "CMCCAdmin", "CUAdmin", "telecomadmin", "cqadmin", "user", "admin", "cuadmin", "lnadmin", "useradmin"}
+    defaultPasswds = []string{"admin", "nE%jA@5b", "aDm8H%MdA", "CUAdmin", "nE7jA%5m", "cqunicom", "1620@CTCC", "1620@CUcc", "admintelecom", "cuadmin", "lnadmin"}
 
 	rootCmd = &cobra.Command{
 		Use: "zteOnu",
@@ -34,9 +38,10 @@ var (
 	}
 )
 
+
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&user, "user", "u", "telecomadmin", "factory mode auth username")
-	rootCmd.PersistentFlags().StringVarP(&passwd, "pass", "p", "nE7jA%5m", "factory mode auth password")
+	rootCmd.PersistentFlags().StringVarP(&user, "user", "u", "", "factory mode auth username")
+	rootCmd.PersistentFlags().StringVarP(&passwd, "pass", "p", "", "factory mode auth password")
 	rootCmd.PersistentFlags().StringVarP(&ip, "ip", "i", "192.168.1.1", "ONU ip address")
 	rootCmd.PersistentFlags().IntVar(&port, "port", 80, "ONU http port")
 	rootCmd.PersistentFlags().BoolVar(&permTelnet, "telnet", false, "permanent telnet (user: root, pass: Zte521)")
@@ -71,9 +76,38 @@ func run() error {
 		}
 	}
 
-	tlUser, tlPass, err := factory.New(user, passwd, ip, port).Handle()
-	if err != nil {
-		return err
+    // User default lists if user\pass not passed
+    if user == "" {
+        userList = defaultUsers
+    } else {
+        userList = []string{user}
+    }
+    if passwd == "" {
+        passwdList = defaultPasswds
+    } else {
+        passwdList = []string{passwd} 
+    }
+    // Check list size
+	if len(userList) != len(passwdList) {
+		return errors.New("Users and Passwords list should have same lenght")
+	}
+
+//	tlUser, tlPass, err := factory.New(user, passwd, ip, port).Handle()
+//	if err != nil {
+//		return err
+//	}
+
+    var tlUser string 
+    var tlPass string
+
+	for i := 0; i < len(userList); i++ {
+		var err error
+		tlUser, tlPass, err = factory.New(userList[i], passwdList[i], ip, port).Handle()
+		if err != nil {
+			return fmt.Errorf("Cannot authenticate with user %s: %v", userList[i], err)
+		}
+		// Fai qualcosa con tlUser e tlPass
+		fmt.Printf("Success autheticated with user %s\n", tlUser)
 	}
 
 	if permTelnet {

@@ -1,4 +1,4 @@
-module github.com/thank243/zteOnu
+module github.com/stich86/zteOnu
 
 go 1.22.0
 

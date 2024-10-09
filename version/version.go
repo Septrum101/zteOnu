@@ -5,10 +5,10 @@ import (
 )
 
 var (
-	version = "dev"
+	version = "0.0.7"
 	appName = "ZteONU"
-	date    = "unknown"
-	intro   = "https://github.com/thank243/zteOnu"
+	date    = "09/10/2024"
+	intro   = "https://github.com/stich86/zteOnu"
 )
 
 func Show() {
