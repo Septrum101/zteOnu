@@ -108,14 +108,17 @@ func (f *Factory) checkLoginAuth() error {
 	}
 }
 
-// LocalMAC returns the MAC address used to derive the SendInfo payload.
-// If iface is empty, the first usable (non-loopback) interface with a 6-byte
-// MAC is used; otherwise the MAC of the named interface is returned.
-func LocalMAC(iface string) ([6]byte, error) {
+// LocalMACs returns the MAC addresses of all candidate local interfaces. If
+// iface is non-empty only that interface is considered; otherwise every
+// non-loopback interface with a 6-byte MAC qualifies. An error is returned
+// when no usable MAC can be found.
+func LocalMACs(iface string) ([][6]byte, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return [6]byte{}, err
+		return nil, err
 	}
+	var macs [][6]byte
+	seen := make(map[[6]byte]bool)
 	for _, i := range ifaces {
 		if iface != "" && i.Name != iface {
 			continue
@@ -126,62 +129,82 @@ func LocalMAC(iface string) ([6]byte, error) {
 		if len(i.HardwareAddr) == 6 {
 			var m [6]byte
 			copy(m[:], i.HardwareAddr)
-			return m, nil
+			if !seen[m] {
+				seen[m] = true
+				macs = append(macs, m)
+			}
 		}
 	}
-	if iface == "" {
-		return [6]byte{}, errors.New("no suitable network interface MAC address found")
+	if len(macs) == 0 {
+		if iface == "" {
+			return nil, errors.New("no suitable network interface MAC address found")
+		}
+		return nil, fmt.Errorf("interface %q has no usable 6-byte MAC address", iface)
 	}
-	return [6]byte{}, fmt.Errorf("interface %q has no usable 6-byte MAC address", iface)
+	return macs, nil
 }
 
-// ClientMAC returns the MAC address used to derive the SendInfo payload. If a
-// custom MAC was supplied via New, it is returned (after validation); otherwise
-// the MAC is derived from the local interface via LocalMAC.
-func (f *Factory) ClientMAC() ([6]byte, error) {
+// ClientMACs returns the candidate MAC addresses used to derive the SendInfo
+// payload. If a custom MAC was supplied via New it is the only candidate;
+// otherwise every local interface MAC (filtered by iface) qualifies.
+func (f *Factory) ClientMACs() ([][6]byte, error) {
 	if f.mac != "" {
 		hw, err := net.ParseMAC(f.mac)
 		if err != nil {
-			return [6]byte{}, fmt.Errorf("invalid MAC %q: %w", f.mac, err)
+			return nil, fmt.Errorf("invalid MAC %q: %w", f.mac, err)
 		}
 		if len(hw) != 6 {
-			return [6]byte{}, fmt.Errorf("MAC %q must be 6 bytes, got %d", f.mac, len(hw))
+			return nil, fmt.Errorf("MAC %q must be 6 bytes, got %d", f.mac, len(hw))
 		}
 		var m [6]byte
 		copy(m[:], hw)
-		return m, nil
+		return [][6]byte{m}, nil
 	}
-	return LocalMAC(f.iface)
+	return LocalMACs(f.iface)
 }
 
+// macLabel renders a MAC for error messages.
+func macLabel(mac [6]byte) string {
+	return net.HardwareAddr(mac[:]).String()
+}
+
+// sendInfo tries every candidate client MAC until one is accepted by the
+// device (HTTP 200). It only returns an error when all candidates have failed,
+// since the interface MAC auto-detected may not be the one the device has
+// associated with this client.
 func (f *Factory) sendInfo() error {
-	command := []byte("SendInfo.gch?info=12|")
-	mac, err := f.ClientMAC()
-	if err != nil {
-		return err
-	}
-	magicBytes := MacToMagicBytes(mac)
-	command = append(command, magicBytes...)
-
-	payload, err := utils.ECBEncrypt(command, f.key)
-	if err != nil {
-		return err
-	}
-	resp, err := f.cli.R().SetBody(payload).Post("webFacEntry")
+	macs, err := f.ClientMACs()
 	if err != nil {
 		return err
 	}
 
-	switch resp.StatusCode() {
-	case 200:
-		return nil
-	case 400:
-		return errors.New("unknown errors")
-	case 401:
-		return errors.New("info error")
-	default:
-		return errors.New(resp.String())
+	var lastErr error
+	for _, mac := range macs {
+		command := []byte("SendInfo.gch?info=12|")
+		command = append(command, MacToMagicBytes(mac)...)
+
+		payload, err := utils.ECBEncrypt(command, f.key)
+		if err != nil {
+			return err
+		}
+		resp, err := f.cli.R().SetBody(payload).Post("webFacEntry")
+		if err != nil {
+			lastErr = fmt.Errorf("MAC %s: %w", macLabel(mac), err)
+			continue
+		}
+		switch resp.StatusCode() {
+		case 200:
+			return nil
+		case 400:
+			lastErr = fmt.Errorf("MAC %s: unknown errors", macLabel(mac))
+		case 401:
+			lastErr = fmt.Errorf("MAC %s: info error", macLabel(mac))
+		default:
+			lastErr = fmt.Errorf("MAC %s: %s", macLabel(mac), resp.String())
+		}
 	}
+
+	return fmt.Errorf("all %d candidate MACs rejected: %w", len(macs), lastErr)
 }
 
 func (f *Factory) factoryMode() (user string, pass string, err error) {

@@ -1,58 +1,100 @@
 package factory
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/go-resty/resty/v2"
 )
 
-// magicPayloadReference is the originally captured SendInfo magic payload for
-// the MAC 00:07:29:55:35:57 (see the macvm reverse-engineering notes). The
-// server recovers the client MAC from this payload and memcmp()s it against the
-// device MAC.
+// Device-side SendInfo verification, reversed from the webFacCheckClientInfo
+// VM (see zte_payload.py):
 //
-// The payload is 46 bytes laid out as 12 little-endian uint16 "values", each
-// followed by two zero bytes (a 4-byte group). The MAC is folded into the
-// value bytes: value j (0..11) maps to MAC byte j/2, and both bytes of that
-// value are XORed with that MAC byte. The two zero bytes of every group are
-// fixed framing and never carry MAC data. This matches "info=12" (12 values =
-// 6 MAC bytes * 2 values per byte).
+//  1. info must be "<N>|<payload>", with N%6==0 and N<=512.
+//  2. Each 4-byte group of the payload is read as a little-endian value w and
+//     the VM computes acc = 1; then repeats 1271 times acc = (acc * w) % 2537,
+//     i.e. acc = w^1271 mod 2537. byte_buf[k] = acc & 0xff.
+//  3. byte_buf is grouped by 6 bytes; if any group equals the client MAC, the
+//     request is authorized.
 //
-// We therefore derive the device-independent frame once and recompute the
-// payload for any MAC, so the tool works with whatever MAC the interface is
-// currently set to (no need to spoof 00:07:29:55:35:57 specifically).
-var magicPayloadReference = []byte{
-	0x00, 0x00, 0x00, 0x00, 0x60, 0x08, 0x00, 0x00, 0x93, 0x07, 0x00, 0x00,
-	0x3a, 0x08, 0x00, 0x00, 0xba, 0x00, 0x00, 0x00, 0x90, 0x07, 0x00, 0x00,
-	0xc4, 0x07, 0x00, 0x00, 0xca, 0x06, 0x00, 0x00, 0x95, 0x04, 0x00, 0x00,
-	0x4e, 0x08, 0x00, 0x00, 0xcd, 0x01, 0x00, 0x00, 0x27, 0x08,
+// The payload is therefore 46 bytes = 12 little-endian uint16 values
+// ("info=12"), each packed as 2 data bytes + 2 zero bytes (the 12th value has
+// no trailing zero bytes). The first 6 values are modular-exponentiation
+// preimages of the 6 MAC bytes: for each MAC byte m we pick a value v with
+// (v^1271 mod 2537) & 0xff == m. The remaining 6 values are filler that does
+// not take part in the MAC match.
+const (
+	mod = 0x9E9     // 2537
+	exp = 0x4F8 - 1 // 1271 (the VM counter counts down from 0x4f8 to 1)
+)
+
+// power returns w^exp mod mod, equivalent to the device VM's multiply loop.
+func power(w uint32) byte {
+	w %= mod
+	acc := uint32(1)
+	for e := exp; e > 0; e >>= 1 {
+		if e&1 == 1 {
+			acc = (acc * w) % mod
+		}
+		w = (w * w) % mod
+	}
+	return byte(acc & 0xff)
 }
 
-// magicPayloadRefMAC is the MAC the reference payload above was captured for.
-var magicPayloadRefMAC = [6]byte{0x00, 0x07, 0x29, 0x55, 0x35, 0x57}
-
-// magicPayloadFrame is the device-independent part of the payload, derived from
-// the reference payload and its MAC. value[j] = frame[j] ^ mac[j/2].
-var magicPayloadFrame [24]byte
+// revTable maps every byte value to the preimages v in [0, mod) satisfying
+// power(v) == that byte, in ascending order.
+var revTable [256][]uint16
 
 func init() {
-	for j := range 12 {
-		m := magicPayloadRefMAC[j/2]
-		magicPayloadFrame[2*j] = magicPayloadReference[4*j] ^ m
-		magicPayloadFrame[2*j+1] = magicPayloadReference[4*j+1] ^ m
+	var buckets [256][]uint16
+	for v := range uint16(mod) {
+		b := power(uint32(v))
+		buckets[b] = append(buckets[b], v)
+	}
+	for b := range 256 {
+		if len(buckets[b]) == 0 {
+			panic(fmt.Sprintf("no preimage for byte %02x", b))
+		}
+		revTable[b] = buckets[b]
 	}
 }
 
-// MacToMagicBytes builds the SendInfo magic payload for the given client MAC.
-// It XORs the device-independent frame with the MAC (2 values per MAC byte)
-// while preserving the fixed zero framing, reproducing the captured payload
-// exactly when mac == 00:07:29:55:35:57.
+// MacToMagicBytes builds the 46-byte SendInfo magic payload that encodes the
+// given client MAC. The first six uint16 values are the smallest preimages of
+// the six MAC bytes; the remaining six are fixed filler values that do not
+// affect the MAC check.
 func MacToMagicBytes(mac [6]byte) []byte {
-	out := make([]byte, len(magicPayloadReference))
-	for j := range 12 {
-		m := mac[j/2]
-		out[4*j] = magicPayloadFrame[2*j] ^ m
-		out[4*j+1] = magicPayloadFrame[2*j+1] ^ m
+	vals := make([]uint16, 12)
+	for i, b := range mac {
+		vals[i] = revTable[b][0]
 	}
-	return out
+	out := make([]byte, 0, 46)
+	for _, v := range vals[:11] {
+		out = append(out, byte(v), byte(v>>8), 0, 0)
+	}
+	return append(out, byte(vals[11]), byte(vals[11]>>8))
+}
+
+// verifyPayload replicates the device-side check: split the payload into
+// 4-byte groups, apply power() to each, group the resulting bytes by 6, and
+// report whether any group equals mac.
+func verifyPayload(payload []byte, mac [6]byte) bool {
+	var bb [12]byte
+	for k := range 12 {
+		var w uint32
+		for i := range 4 {
+			if idx := 4*k + i; idx < len(payload) {
+				w |= uint32(payload[idx]) << (8 * i)
+			}
+		}
+		bb[k] = power(w)
+	}
+	for i := range 12 / 6 {
+		if bytes.Equal(bb[6*i:6*i+6], mac[:]) {
+			return true
+		}
+	}
+	return false
 }
 
 var (

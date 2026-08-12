@@ -40,8 +40,8 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&port, "port", 8080, "ONU http port")
 	rootCmd.PersistentFlags().BoolVar(&permTelnet, "telnet", false, "permanent telnet (user: root, pass: Zte521)")
 	rootCmd.PersistentFlags().IntVar(&telnetPort, "tp", 23, "ONU telnet port")
-	rootCmd.PersistentFlags().BoolVar(&newMode, "new", false, "use new method to open telnet; the SendInfo payload is derived from the current interface MAC")
-	rootCmd.PersistentFlags().StringVar(&iface, "iface", "", "network interface to read the MAC from (default: first non-loopback interface)")
+	rootCmd.PersistentFlags().BoolVar(&newMode, "new", false, "use new method to open telnet; the SendInfo payload is derived from the MAC of each local interface, tried until the device accepts one")
+	rootCmd.PersistentFlags().StringVar(&iface, "iface", "", "network interface to read the MAC from (default: try all non-loopback interfaces)")
 	rootCmd.PersistentFlags().StringVarP(&mac, "mac", "m", "", "custom client MAC address used to derive the SendInfo payload (e.g. 00:07:29:55:35:57); defaults to the interface MAC")
 }
 
@@ -51,10 +51,11 @@ func run() error {
 	fac := factory.New(user, passwd, ip, port, iface, mac)
 
 	if newMode {
-		// The SendInfo payload is now derived from the client MAC
+		// The SendInfo payload is derived from the client MAC
 		// (see factory.MacToMagicBytes), so any MAC the device accepts works.
-		// We only need to make sure a usable MAC is actually present.
-		if _, err := fac.ClientMAC(); err != nil {
+		// Every local interface MAC is tried in turn (see factory.sendInfo),
+		// so we only need to make sure at least one usable MAC is present.
+		if _, err := fac.ClientMACs(); err != nil {
 			return fmt.Errorf("new mode requires a usable MAC (provide --mac or a network interface): %w", err)
 		}
 	}
