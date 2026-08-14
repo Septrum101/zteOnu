@@ -61,4 +61,4 @@ equals the MAC byte; the remaining six are filler.
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Septrum101/zteOnu&type=Date)](https://star-history.com/#Septrum101/zteOnu&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=Septrum101/zteOnu&type=Date)](https://star-history.dera.page/#Septrum101/zteOnu&Date)
