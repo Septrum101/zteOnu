@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -64,6 +63,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("temp user: %s, pass: %s\n", tlUser, tlPass)
 
 	if permTelnet {
 		// create telnet conn
@@ -79,14 +79,15 @@ func run() error {
 		}
 		fmt.Println("Permanent Telnet succeed\r\nuser: root, pass: Zte521")
 
-		// reboot device
+		// reboot device; safe because PermTelnet already waited for the shell
+		// prompt after "DB save", i.e. the flash write has completed
 		fmt.Println("wait reboot..")
-		time.Sleep(time.Second)
 		if err := t.Reboot(); err != nil {
 			return err
 		}
+		fmt.Println("device is rebooting")
 	} else {
-		fmt.Printf("user: %s\npass: %s", tlUser, tlPass)
+
 	}
 	return nil
 }

@@ -3,6 +3,7 @@ package factory
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"strconv"
@@ -23,6 +24,7 @@ func New(user string, passwd string, ip string, port int, iface string, mac stri
 		iface:  iface,
 		mac:    mac,
 		cli: resty.New().SetHeader("User-Agent", "curl/8.8.0-DEV").
+			SetTimeout(10 * time.Second).
 			SetBaseURL(fmt.Sprintf("http://%s:%d", ip, port)),
 	}
 }
@@ -46,10 +48,10 @@ func (f *Factory) reset() error {
 
 func (f *Factory) reqFactoryMode() error {
 	_, err := f.cli.R().SetBody("RequestFactoryMode.gch").Post("webFac")
-	if err != nil {
-		if err.(*url.Error).Err.Error() != "EOF" {
-			return err
-		}
+	// The device accepts the request by closing the connection, which surfaces
+	// as an EOF error; any other transport failure is real.
+	if err != nil && !errors.Is(err, io.EOF) {
+		return err
 	}
 	return nil
 }
@@ -60,7 +62,7 @@ func (f *Factory) sendSq() (uint8, error) {
 	r := time.Now().Second()
 	resp, err := f.cli.R().SetBody(fmt.Sprintf("SendSq.gch?rand=%d\r\n", r)).Post("webFac")
 	if err != nil {
-		fmt.Println(err)
+		return 0, err
 	}
 	if resp.StatusCode() != 200 {
 		return 0, errors.New(resp.String())
@@ -218,6 +220,9 @@ func (f *Factory) factoryMode() (user string, pass string, err error) {
 	if err != nil {
 		return
 	}
+	if resp.StatusCode() != 200 {
+		return "", "", fmt.Errorf("unexpected status %d: %s", resp.StatusCode(), resp.String())
+	}
 
 	dec, err := utils.ECBDecrypt(resp.Body(), f.key)
 	if err != nil {
@@ -232,6 +237,9 @@ func (f *Factory) factoryMode() (user string, pass string, err error) {
 	q := u.Query()
 	user = q.Get("user")
 	pass = q.Get("pass")
+	if user == "" || pass == "" {
+		return "", "", fmt.Errorf("factory mode response carries no credentials: %q", string(dec))
+	}
 
 	return
 }
