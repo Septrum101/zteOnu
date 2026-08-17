@@ -1,4 +1,4 @@
-package utils
+package crypto
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ func ECBEncrypt(origData, key []byte) ([]byte, error) {
 
 	origData = padding(origData, block.BlockSize())
 	encrypted := make([]byte, len(origData))
-	// 对每个block进行加密
+	// encrypt each block
 	for i := 0; i < len(origData); i += block.BlockSize() {
 		block.Encrypt(encrypted[i:i+block.BlockSize()], origData[i:i+block.BlockSize()])
 	}
@@ -33,7 +33,7 @@ func ECBDecrypt(encrypted, key []byte) ([]byte, error) {
 	}
 
 	origData := make([]byte, len(encrypted))
-	// 对每个block进行解密
+	// decrypt each block
 	for i := 0; i < len(encrypted); i += block.BlockSize() {
 		block.Decrypt(origData[i:i+block.BlockSize()], encrypted[i:i+block.BlockSize()])
 	}

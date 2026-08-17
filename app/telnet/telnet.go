@@ -25,6 +25,18 @@ const (
 	rebootCloseTimeout = 12 * time.Second
 )
 
+// ctrl terminates every command line sent to the device shell.
+const ctrl = "\r\n"
+
+// Telnet is an interactive shell connection to the ONU. The unexported user
+// and pass are the credentials telnetd expects (see Login); Conn is the raw
+// connection.
+type Telnet struct {
+	user string
+	pass string
+	Conn net.Conn
+}
+
 // shellPrompts are matched against device output to detect that a command has
 // finished and the shell is ready for the next one.
 var shellPrompts = []string{"#", "$"}
@@ -46,16 +58,19 @@ func New(user string, pass string, ip string, port int) (*Telnet, error) {
 	return nil, fmt.Errorf("telnet service did not come up within %s: %w", dialAttempts*dialInterval, lastErr)
 }
 
-func (t *Telnet) PermTelnet() error {
-	if err := t.loginTelnet(); err != nil {
-		return err
-	}
+// Login performs the interactive telnet login with the credentials the
+// client was created with. It returns nil once the shell prompt is reached,
+// so a nil return proves the credentials are currently accepted.
+func (t *Telnet) Login() error {
+	return t.loginTelnet()
+}
 
-	if err := t.modifyDB(); err != nil {
-		return err
-	}
-
-	return nil
+// Solidify writes the permanent telnet settings to the device DB and saves
+// them. The connection must already be logged in (see Login); each command is
+// confirmed by the shell prompt, and the prompt after "DB save" means the
+// flash write has finished.
+func (t *Telnet) Solidify() error {
+	return t.modifyDB()
 }
 
 func (t *Telnet) loginTelnet() error {

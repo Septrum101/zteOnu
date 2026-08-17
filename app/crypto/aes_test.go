@@ -1,4 +1,4 @@
-package utils
+package crypto
 
 import (
 	"encoding/hex"
@@ -7,25 +7,25 @@ import (
 )
 
 func TestAES(t *testing.T) {
-	// 需要加密的字符串
+	// the string to be encrypted
 	orig := "hello world"
-	// 加密密钥
+	// the encryption key
 	key := "1234567890123456"
-	fmt.Println("原文: ", orig)
+	fmt.Println("plaintext: ", orig)
 
 	encrypted, err := ECBEncrypt([]byte(orig), []byte(key))
 	if err != nil {
-		fmt.Println("加密出错: ", err)
+		fmt.Println("encrypt error: ", err)
 		return
 	}
-	fmt.Println("加密后: ", hex.EncodeToString(encrypted))
+	fmt.Println("encrypted: ", hex.EncodeToString(encrypted))
 
 	decrypted, err := ECBDecrypt(encrypted, []byte(key))
 	if err != nil {
-		fmt.Println("解密出错: ", err)
+		fmt.Println("decrypt error: ", err)
 		return
 	}
-	fmt.Println("解密后: ", string(decrypted))
+	fmt.Println("decrypted: ", string(decrypted))
 	if orig != string(decrypted) {
 		t.Error("original string not equal decrypted string")
 	}

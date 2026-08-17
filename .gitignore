@@ -11,3 +11,4 @@ gen
 *.out
 go.work
 .DS_Store
+.zcode
