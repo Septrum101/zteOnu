@@ -15,7 +15,7 @@ const (
 	// after the webFac flow returns, so keep dialing for a while instead of
 	// failing on the first refused/filtered attempt.
 	connectTimeout = 3 * time.Second
-	dialAttempts   = 30
+	dialAttempts   = 5
 	dialInterval   = 1 * time.Second
 	readTimeout    = 10 * time.Second
 

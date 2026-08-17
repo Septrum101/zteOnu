@@ -12,26 +12,26 @@ go build -o zteonu .
 ## Usage
 
 ```bash
-# Open temp telnet on 192.168.1.1:8080 (tries every local interface MAC)
+# Open temp telnet; the client MAC is auto-detected from the route to the ONU
 ./zteonu -i 192.168.1.1
 
-# Restrict the candidate MACs to a specific network interface
+# Pin the MAC to a specific network interface instead
 ./zteonu -i 192.168.1.1 --iface en0
 
-# Use a custom client MAC for the SendInfo payload (the only candidate)
+# Use a custom client MAC for the SendInfo payload (overrides everything)
 ./zteonu -i 192.168.1.1 -m 00:07:29:55:35:57
 
 # Also enable permanent telnet (user: root, pass: Zte521)
 ./zteonu -i 192.168.1.1 --telnet
 ```
 
-Every run opens the temporary factory telnet through the `webFac` flow and then **verifies it with an actual telnet
-login using the temp credentials**. The flow completing over HTTP is not proof the device accepts them - a mismatched
-client MAC still yields credentials, but the telnet they authorize does not work. So each candidate MAC is tried in turn
-(the `SendInfo` payload binds the session to a MAC), each attempt is judged by a real login, and unverified MACs fall
-through to the next one; if none verify, the whole MAC pool is re-cycled a few times before giving up. `--telnet` only
-decides whether, after the verification succeeds, the permanent telnet settings are written (and the device rebooted);
-without it the tool just prints the verified temp credentials and exits.
+When neither `--iface` nor `--mac` is given, the client MAC is auto-detected: the tool dials a UDP socket to the ONU
+(route lookup only, no packet is sent), reads the chosen source address and fills in the MAC of the interface that
+owns it. Every run opens the temporary factory telnet through the `webFac` flow and then **verifies it with an actual
+telnet login using the temp credentials**. The flow completing over HTTP is not proof the device accepts them - a
+mismatched client MAC still yields credentials, but the telnet they authorize does not work. `--telnet` only decides
+whether, after the verification succeeds, the permanent telnet settings are written (and the device rebooted); without
+it the tool just prints the verified temp credentials and exits.
 
 ## Flags
 
@@ -43,18 +43,15 @@ without it the tool just prints the verified temp credentials and exits.
 | `--port`   |       | `8080`                    | ONU http port                                                                        |
 | `--telnet` |       | `false`                   | permanent telnet (user: `root`, pass: `Zte521`); only applied after a temp telnet login is verified          |
 | `--tp`     |       | `23`                      | ONU telnet port                                                                      |
-| `--iface`  |       | `""` (first non-loopback) | network interface to read the MAC from                                               |
-| `--mac`    | `-m`  | `""`                      | custom client MAC used to derive the `SendInfo` payload (e.g. `00:07:29:55:35:57`); defaults to the interface MAC |
+| `--iface`  |       | `""`                       | network interface whose MAC to use (default: auto-detected from the route to the ONU) |
+| `--mac`    | `-m`  | `""`                       | custom client MAC for the `SendInfo` payload (e.g. `00:07:29:55:35:57`); overrides `--iface` and auto-detection |
 
 ## Notes on the client MAC
 
 The `SendInfo` payload encodes the MAC address of a local network interface (see `app/factory`).
 The device only authorizes MAC addresses it accepts, so:
 
-- Every candidate MAC is tried in turn. The tool proceeds only with a MAC whose granted credentials actually log in over
-  telnet; the HTTP flow returning credentials alone is not enough (see Usage).
-- Use `--iface` to restrict the candidates to a single interface.
-- Use `--mac` to supply a custom MAC directly; this overrides the interface MAC and is the only candidate tried.
+- Without `--iface` or `--mac` the interface that routes to the ONU is auto-detected and its MAC is used.
 - The MAC must be one the device accepts. Historically the device accepted `00:07:29:55:35:57`; supply it via `--mac`
   or spoof the interface MAC (or use a device that accepts the current MAC) so the payload matches what the device expects.
 

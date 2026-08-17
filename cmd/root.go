@@ -37,8 +37,8 @@ func init() {
 	rootCmd.PersistentFlags().IntVar(&port, "port", 8080, "ONU http port")
 	rootCmd.PersistentFlags().BoolVar(&permTelnet, "telnet", false, "permanent telnet (user: root, pass: Zte521); only applied after a temp telnet login is verified")
 	rootCmd.PersistentFlags().IntVar(&telnetPort, "tp", 23, "ONU telnet port")
-	rootCmd.PersistentFlags().StringVar(&iface, "iface", "", "network interface to read the MAC from (default: try all non-loopback interfaces)")
-	rootCmd.PersistentFlags().StringVarP(&mac, "mac", "m", "", "custom client MAC address used to derive the SendInfo payload (e.g. 00:07:29:55:35:57); defaults to the interface MAC")
+	rootCmd.PersistentFlags().StringVar(&iface, "iface", "", "network interface whose MAC to use (default: auto-detected from the route to the ONU)")
+	rootCmd.PersistentFlags().StringVarP(&mac, "mac", "m", "", "custom client MAC address for the SendInfo payload (e.g. 00:07:29:55:35:57); overrides --iface and auto-detection")
 }
 
 func run() error {

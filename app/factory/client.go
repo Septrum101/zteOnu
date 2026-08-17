@@ -20,7 +20,7 @@ type Factory struct {
 }
 
 // New builds a Factory for the given device and client settings. A non-empty
-// mac is the only candidate used for the SendInfo payload (see ClientMACs).
+// mac is the only candidate used for the SendInfo payload (see ClientMAC).
 func New(user string, passwd string, ip string, port int, iface string, mac string) *Factory {
 	return &Factory{
 		user:   user,
