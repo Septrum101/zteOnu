@@ -86,6 +86,24 @@ func TestWaitForCloseTimeout(t *testing.T) {
 	}
 }
 
+func TestParseTelnetdPID(t *testing.T) {
+	const show = `Name             APPID  pid   inst  StartedbyName    State    EchoMsg 
+plugagent        172    3637  0     cspd_misc        1        1       
+telnetd          61     4102  0     cspd_misc        1        1       
+tr069d           168    2205  0     cspd_misc        1        1       
+cspd             1      1627  0     pc               1        1       
+`
+	if got, err := parseTelnetdPID(show); err != nil || got != 4102 {
+		t.Fatalf("parseTelnetdPID = %d, %v; want 4102, nil", got, err)
+	}
+}
+
+func TestParseTelnetdPIDNotFound(t *testing.T) {
+	if _, err := parseTelnetdPID("dnsmasq          0      3092  0     dns_mgr          1        1\n"); err == nil {
+		t.Fatal("expected error for output without telnetd, got nil")
+	}
+}
+
 func TestWaitForTimeout(t *testing.T) {
 	c1, c2 := net.Pipe()
 	defer c1.Close()

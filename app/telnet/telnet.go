@@ -23,6 +23,11 @@ const (
 	// command returns, so the connection must be held open until the device
 	// closes it; closing the session ourselves can abort the reboot.
 	rebootCloseTimeout = 12 * time.Second
+
+	// The device drops the current session when telnetd is killed through the
+	// program manager, so the connection must be held open until the close
+	// announces that the kill took effect and pc has taken over respawning.
+	restartCloseTimeout = 12 * time.Second
 )
 
 // ctrl terminates every command line sent to the device shell.
@@ -42,8 +47,15 @@ type Telnet struct {
 var shellPrompts = []string{"#", "$"}
 
 func New(user string, pass string, ip string, port int) (*Telnet, error) {
+	return NewRetry(user, pass, ip, port, dialAttempts, dialInterval)
+}
+
+// NewRetry is New with a custom retry budget, used to verify a telnetd that has
+// just been restarted in place: the pc supervisor can take a while to respawn
+// the daemon, longer than the default budget covers.
+func NewRetry(user string, pass string, ip string, port int, attempts int, interval time.Duration) (*Telnet, error) {
 	var lastErr error
-	for range dialAttempts {
+	for range attempts {
 		conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip, strconv.Itoa(port)), connectTimeout)
 		if err == nil {
 			return &Telnet{
@@ -53,9 +65,9 @@ func New(user string, pass string, ip string, port int) (*Telnet, error) {
 			}, nil
 		}
 		lastErr = err
-		time.Sleep(dialInterval)
+		time.Sleep(interval)
 	}
-	return nil, fmt.Errorf("telnet service did not come up within %s: %w", dialAttempts*dialInterval, lastErr)
+	return nil, fmt.Errorf("telnet service did not come up within %s: %w", time.Duration(attempts)*interval, lastErr)
 }
 
 // Login performs the interactive telnet login with the credentials the
@@ -152,6 +164,26 @@ func (t *Telnet) Reboot() error {
 	return t.waitForClose(rebootCloseTimeout)
 }
 
+// RestartTelnetd restarts the telnetd service in place through the device's
+// program manager (`sendcmd -pc`): the running telnetd is killed and pc
+// respawns it, which applies the currently saved DB settings without a reboot.
+// Killing telnetd drops the current session, so like Reboot the connection is
+// held open until the device closes it.
+func (t *Telnet) RestartTelnetd() error {
+	out, err := t.runOutput("sendcmd -pc show", readTimeout)
+	if err != nil {
+		return fmt.Errorf("could not read managed programs: %w", err)
+	}
+	pid, err := parseTelnetdPID(out)
+	if err != nil {
+		return err
+	}
+	if err := t.sendCmd(fmt.Sprintf("sendcmd -pc kill %d", pid)); err != nil {
+		return err
+	}
+	return t.waitForClose(restartCloseTimeout)
+}
+
 // waitForClose reads until the peer closes the connection (EOF or a reset,
 // both mean the device is going down) or the timeout elapses.
 func (t *Telnet) waitForClose(timeout time.Duration) error {
@@ -169,6 +201,71 @@ func (t *Telnet) waitForClose(timeout time.Duration) error {
 		}
 		return nil
 	}
+}
+
+// runOutput sends a shell command and returns its device output, with the
+// echoed command and telnet control bytes stripped. Only output received after
+// the command is returned; waiting for the echoed command text first makes the
+// match robust against a leftover prompt from the previous command.
+func (t *Telnet) runOutput(cmd string, timeout time.Duration) (string, error) {
+	// drain any output left over from a previous command so a stale prompt
+	// cannot satisfy the match before the echo arrives
+	_ = t.Conn.SetReadDeadline(time.Now().Add(250 * time.Millisecond))
+	drainBuf := make([]byte, 1024)
+	for {
+		_, err := t.Conn.Read(drainBuf)
+		if err != nil {
+			break
+		}
+	}
+
+	if err := t.sendCmd(cmd); err != nil {
+		return "", err
+	}
+	deadline := time.Now().Add(timeout)
+	var raw bytes.Buffer
+	buf := make([]byte, 1024)
+	for {
+		out := filterTelnet(raw.Bytes())
+		if strings.Contains(out, cmd) && matchAny(out, shellPrompts) {
+			break
+		}
+		if !time.Now().Before(deadline) {
+			return "", fmt.Errorf("timeout waiting for the result of %q: %q",
+				cmd, truncate(out, 128))
+		}
+		_ = t.Conn.SetReadDeadline(deadline)
+		n, err := t.Conn.Read(buf)
+		if n > 0 {
+			raw.Write(buf[:n])
+		}
+		if err != nil {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
+				continue
+			}
+			return "", fmt.Errorf("%w (device output: %q)", err, truncate(filterTelnet(raw.Bytes()), 128))
+		}
+	}
+	out := strings.TrimPrefix(filterTelnet(raw.Bytes()), cmd)
+	out = strings.TrimLeft(out, "\r\n")
+	return out, nil
+}
+
+// parseTelnetdPID extracts the current telnetd pid from a `sendcmd -pc show`
+// table, which has the columns "Name APPID pid inst ...".
+func parseTelnetdPID(out string) (int, error) {
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 3 && f[0] == "telnetd" {
+			pid, err := strconv.Atoi(f[2])
+			if err != nil {
+				return 0, fmt.Errorf("invalid telnetd pid %q: %w", f[2], err)
+			}
+			return pid, nil
+		}
+	}
+	return 0, errors.New("telnetd not found in `sendcmd -pc show` output")
 }
 
 // waitFor reads device output until one of the patterns appears or the timeout

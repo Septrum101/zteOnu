@@ -21,8 +21,11 @@ go build -o zteonu .
 # Use a custom client MAC for the SendInfo payload (overrides everything)
 ./zteonu -i 192.168.1.1 -m 00:07:29:55:35:57
 
-# Also enable permanent telnet (user: root, pass: Zte521)
+# Enable permanent telnet (user: root, pass: Zte521) by restarting telnetd in place, without rebooting
 ./zteonu -i 192.168.1.1 --telnet
+
+# Same, but apply the settings by rebooting the device instead
+./zteonu -i 192.168.1.1 --telnet-restart
 ```
 
 When neither `--iface` nor `--mac` is given, the client MAC is auto-detected: the tool dials a UDP socket to the ONU
@@ -30,8 +33,11 @@ When neither `--iface` nor `--mac` is given, the client MAC is auto-detected: th
 owns it. Every run opens the temporary factory telnet through the `webFac` flow and then **verifies it with an actual
 telnet login using the temp credentials**. The flow completing over HTTP is not proof the device accepts them - a
 mismatched client MAC still yields credentials, but the telnet they authorize does not work. `--telnet` only decides
-whether, after the verification succeeds, the permanent telnet settings are written (and the device rebooted); without
-it the tool just prints the verified temp credentials and exits.
+whether, after the verification succeeds, the permanent telnet settings are written and applied by **restarting the
+`telnetd` service in place, without rebooting**; without it the tool just prints the verified temp credentials and
+exits. The in-place restart goes through the device's program manager (`sendcmd -pc kill <pid>`, which the `pc`
+supervisor answers by respawning telnetd) and is verified with a fresh `root`/`Zte521` login. `--telnet-restart`
+writes the same permanent settings but applies them by rebooting the device; the two flags are mutually exclusive.
 
 ## Flags
 
@@ -41,7 +47,8 @@ it the tool just prints the verified temp credentials and exits.
 | `--pass`   | `-p`  | `nE7jA%5m`                | factory mode auth password                                                           |
 | `--ip`     | `-i`  | `192.168.1.1`             | ONU ip address                                                                       |
 | `--port`   |       | `8080`                    | ONU http port                                                                        |
-| `--telnet` |       | `false`                   | permanent telnet (user: `root`, pass: `Zte521`); only applied after a temp telnet login is verified          |
+| `--telnet` |       | `false`                   | permanent telnet (user: `root`, pass: `Zte521`) applied by restarting the `telnetd` service in place, without rebooting; only applied after a temp telnet login is verified |
+| `--telnet-restart` | | `false`          | permanent telnet (user: `root`, pass: `Zte521`) applied by rebooting the device; mutually exclusive with `--telnet` |
 | `--tp`     |       | `23`                      | ONU telnet port                                                                      |
 | `--iface`  |       | `""`                       | network interface whose MAC to use (default: auto-detected from the route to the ONU) |
 | `--mac`    | `-m`  | `""`                       | custom client MAC for the `SendInfo` payload (e.g. `00:07:29:55:35:57`); overrides `--iface` and auto-detection |
