@@ -255,7 +255,7 @@ func (t *Telnet) runOutput(cmd string, timeout time.Duration) (string, error) {
 // parseTelnetdPID extracts the current telnetd pid from a `sendcmd -pc show`
 // table, which has the columns "Name APPID pid inst ...".
 func parseTelnetdPID(out string) (int, error) {
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		f := strings.Fields(line)
 		if len(f) >= 3 && f[0] == "telnetd" {
 			pid, err := strconv.Atoi(f[2])
