@@ -1,6 +1,7 @@
 package factory
 
 var (
+	// AesKeyPool is used for V1 (legacy) firmware - empty response from SendSq
 	AesKeyPool = []byte{
 		0x7B, 0x56, 0xB0, 0xF7, 0xDA, 0x0E, 0x68, 0x52, 0xC8, 0x19,
 		0xF3, 0x2B, 0x84, 0x90, 0x79, 0xE5, 0x62, 0xF8, 0xEA, 0xD2,
@@ -14,6 +15,7 @@ var (
 		0xF3, 0xB3, 0xE4, 0x76, 0x49, 0x88,
 	}
 
+	// AesKeyPoolNew is used for V2 (2022) firmware - "newrand=N" response
 	AesKeyPoolNew = []byte{
 		0x8C, 0x23, 0x65, 0xD1, 0xFC, 0x32, 0x45, 0x37, 0x11, 0x28,
 		0x71, 0x63, 0x07, 0x20, 0x69, 0x14, 0x73, 0xE7, 0xD4, 0x53,
@@ -26,22 +28,87 @@ var (
 		0x9C, 0x25, 0xA8, 0x92, 0x47, 0xE4, 0x18, 0x0F, 0x24, 0x3F,
 		0x4F, 0x67, 0xEC, 0x97, 0xF4, 0x99,
 	}
+
+	// AesKeyPool2025 is used for V3 (2024-2026) firmware - "re_rand=N&..." response
+	// Supports F-6600P 2024+, F-6201B, and 2026 firmware versions
+	AesKeyPool2025 = []byte{
+		0x9C, 0x33, 0x75, 0xD1, 0x1C, 0x42, 0x45, 0x37, 0x18, 0x48,
+		0x91, 0x73, 0x17, 0x45, 0x79, 0x44, 0x43, 0xD7, 0xD5, 0x73,
+		0x33, 0x54, 0x76, 0xD2, 0xC5, 0xF1, 0x2C, 0x4F, 0x7A, 0xBA,
+		0x61, 0xD9, 0x5C, 0x69, 0xDF, 0x8C, 0xD2, 0x1C, 0xDE, 0x3B,
+		0x35, 0x2D, 0x2F, 0xE1, 0xDE, 0x4C, 0x77, 0xF5, 0x1A, 0x65,
+		0xD1, 0xFE, 0x18, 0x43, 0x8E, 0xA7, 0x42, 0x08, 0x04, 0x78,
+		0xD5, 0xE4, 0xF3, 0x34, 0xA4, 0xD3, 0xF2, 0x36, 0x47, 0x6D,
+		0x86, 0x9D, 0x42, 0x65, 0x13, 0x42, 0xDC, 0x42, 0x99, 0x48,
+		0xDC, 0x67, 0x9F, 0x9E, 0xDC, 0x46, 0x37, 0x5F, 0x84, 0x9F,
+		0x6F, 0x76, 0xCE, 0x79, 0x4F, 0x49,
+	}
+
+	// Payload2026Trailer is appended to SendInfo payload for 2026 firmware
+	Payload2026Trailer = []int{0, 255, 114, 70, 52, 17, 0}
 )
 
-// getKeyPool derives the session AES key from the sendSq parameters: r is the
-// second used as the rand, newR the device's "newrand" replay in version-2
-// handshakes. Every key-pool byte is xored with 0xA5.
+const (
+	VersionV1   uint8 = 1 // Legacy: empty response
+	VersionV2   uint8 = 2 // 2022: "newrand=N"
+	VersionV3   uint8 = 3 // 2024-2025: "re_rand=N&M&<mac>"
+	Version2026 uint8 = 4 // 2026: "re_rand=N&M&<mac>" with extended payload
+)
+
+// getKeyPool derives the session AES key from the sendSq parameters.
+// Every key-pool byte is xored with 0xA5.
 func getKeyPool(version uint8, r int, newR int) []byte {
-	idx := r
-	keyPool := AesKeyPool[idx : idx+24]
-	if version == 2 {
+	var keyPool []byte
+	var idx int
+
+	switch version {
+	case VersionV1:
+		idx = r
+		keyPool = AesKeyPool[idx : idx+24]
+	case VersionV2:
 		idx = ((0x1000193*r)&0x3F ^ newR) % 60
 		keyPool = AesKeyPoolNew[idx : idx+24]
+	case VersionV3, Version2026:
+		idx = ((0x1000193*r)&0x3F ^ newR) % 60
+		keyPool = AesKeyPool2025[idx : idx+24]
+	default:
+		idx = r
+		keyPool = AesKeyPool[idx : idx+24]
 	}
+
 	newKeyPool := make([]byte, len(keyPool))
 	for i := range keyPool {
 		newKeyPool[i] = (keyPool[i] ^ 0xA5) & 0xFF
 	}
 
 	return newKeyPool
+}
+
+// getKeyPoolWithFallback tries multiple key pools for protocols that may use different keys
+func getKeyPoolWithFallback(version uint8, r int, newR int) [][]byte {
+	var pools [][]byte
+	idx := ((0x1000193*r)&0x3F ^ newR) % 60
+
+	switch version {
+	case VersionV3, Version2026:
+		// Try 2025 pool first, then fall back to 2022
+		pools = append(pools, xorPool(AesKeyPool2025[idx:idx+24]))
+		pools = append(pools, xorPool(AesKeyPoolNew[idx:idx+24]))
+	case VersionV2:
+		// Try 2022 pool first, then fall back to original
+		pools = append(pools, xorPool(AesKeyPoolNew[idx:idx+24]))
+		pools = append(pools, xorPool(AesKeyPool[idx:idx+24]))
+	default:
+		pools = append(pools, xorPool(AesKeyPool[r:r+24]))
+	}
+
+	return pools
+}
+
+func xorPool(pool []byte) []byte {
+	result := make([]byte, len(pool))
+	for i := range pool {
+		result[i] = (pool[i] ^ 0xA5) & 0xFF
+	}
+	return result
 }
